@@ -153,6 +153,9 @@ h2 { font-family: "Playfair Display", Georgia, serif; font-size: 1.62rem; letter
 .choice-actions { display: flex; justify-content: center; gap: 9px; flex-wrap: wrap; }
 .file-picker-button { position: relative; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
 .file-picker-button input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; opacity: 0; }
+.file-picker-button:focus-within { outline: 2px solid #3b352d; outline-offset: 3px; }
+.camera-fallback { margin-top: 12px; text-align: center; }
+.camera-fallback p { margin: 0 0 8px; color: #756c61; font-size: .79rem; }
 
 .live-camera { position: relative; min-height: 348px; background: #141311; }
 .live-camera video { display: block; width: 100%; min-height: 348px; max-height: 560px; object-fit: cover; transform: scaleX(-1); }
@@ -162,6 +165,7 @@ h2 { font-family: "Playfair Display", Georgia, serif; font-size: 1.62rem; letter
 .camera-space { min-width: 1px; }
 .shutter { display: grid; width: 59px; height: 59px; padding: 5px; background: rgba(255,255,255,.85); border: 1px solid rgba(255,255,255,.95); border-radius: 50%; place-items: center; }
 .shutter span { width: 100%; height: 100%; background: #e1b096; border: 2px solid #613f30; border-radius: 50%; }
+.shutter:disabled { cursor: wait; opacity: .55; }
 .photo-review { position: relative; min-height: 348px; background: #24211d; }
 .photo-review img { display: block; width: 100%; min-height: 348px; max-height: 600px; object-fit: contain; }
 .retake-button { position: absolute; top: 14px; right: 14px; padding: 8px 11px; color: #fffdf9; background: rgba(36,31,27,.72); border: 1px solid rgba(255,255,255,.4); border-radius: 3px; font-size: .75rem; }

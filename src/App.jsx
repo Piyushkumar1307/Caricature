@@ -118,10 +118,52 @@ function compressPortrait(file) {
   })
 }
 
+function stopStream(stream) {
+  stream?.getTracks().forEach((track) => track.stop())
+}
+
+function cameraErrorMessage(reason) {
+  switch (reason?.name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'Camera permission was not granted. Allow camera access for this site in your browser settings, then try again.'
+    case 'NotFoundError':
+      return 'We could not find a camera on this device. You can choose a photo instead.'
+    case 'NotReadableError':
+      return 'Your camera is being used by another app. Close it, then try again.'
+    case 'OverconstrainedError':
+      return 'We could not use that camera configuration. Please try again or choose a photo instead.'
+    default:
+      return 'We could not open your camera. Check its permission, or choose a photo from your device.'
+  }
+}
+
+async function requestFrontCamera() {
+  const preferred = {
+    audio: false,
+    video: {
+      facingMode: { ideal: 'user' },
+      height: { ideal: 1280 },
+      width: { ideal: 1280 },
+    },
+  }
+
+  try {
+    return await navigator.mediaDevices.getUserMedia(preferred)
+  } catch (reason) {
+    if (reason?.name !== 'OverconstrainedError') throw reason
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: true })
+  }
+}
+
 function Capture({ name, onComplete, onBack, screen }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [cameraReady, setCameraReady] = useState(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
+  const [cameraStream, setCameraStream] = useState(null)
+  const [cameraIssue, setCameraIssue] = useState(false)
   const [photo, setPhoto] = useState(null)
   const [preview, setPreview] = useState(null)
   const [consent, setConsent] = useState(false)
@@ -130,8 +172,45 @@ function Capture({ name, onComplete, onBack, screen }) {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop())
+    stopStream(streamRef.current)
+    streamRef.current = null
   }, [])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!cameraOpen || !cameraStream || !video) return undefined
+
+    let cancelled = false
+    video.muted = true
+    video.playsInline = true
+    video.setAttribute('playsinline', '')
+    video.setAttribute('webkit-playsinline', 'true')
+    video.srcObject = cameraStream
+
+    async function startPreview() {
+      try {
+        await video.play()
+      } catch (reason) {
+        if (cancelled) return
+        stopStream(cameraStream)
+        if (streamRef.current === cameraStream) streamRef.current = null
+        setCameraStream(null)
+        setCameraOpen(false)
+        setCameraReady(false)
+        setCameraIssue(true)
+        setError(cameraErrorMessage(reason))
+      }
+    }
+
+    void startPreview()
+    return () => {
+      cancelled = true
+      if (video.srcObject === cameraStream) {
+        video.pause()
+        video.srcObject = null
+      }
+    }
+  }, [cameraOpen, cameraStream])
 
   useEffect(() => {
     if (!photo) {
@@ -144,30 +223,45 @@ function Capture({ name, onComplete, onBack, screen }) {
   }, [photo])
 
   function stopCamera() {
-    streamRef.current?.getTracks().forEach((track) => track.stop())
+    stopStream(streamRef.current)
     streamRef.current = null
+    setCameraStream(null)
+    setCameraReady(false)
     setCameraOpen(false)
+    setCameraStarting(false)
   }
 
   async function openCamera() {
     setError('')
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Camera capture is not supported in this browser. You can upload a photo instead.')
+    setCameraIssue(false)
+    setCameraReady(false)
+    if (window.isSecureContext === false) {
+      setCameraIssue(true)
+      setError('Camera access needs HTTPS. Open the secure deployed site URL, or use the photo options below.')
       return
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: 'user', width: { ideal: 1440 }, height: { ideal: 1440 } },
-      })
-      streamRef.current = stream
-      setCameraOpen(true)
-      requestAnimationFrame(() => {
-        if (videoRef.current) videoRef.current.srcObject = stream
-      })
-    } catch {
-      setError('We could not open your camera. Check its permission, or choose a photo from your device.')
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraIssue(true)
+      setError('Camera capture is not supported in this browser. You can choose or take a photo instead.')
+      return
     }
+    setCameraStarting(true)
+    try {
+      const stream = await requestFrontCamera()
+      streamRef.current = stream
+      setCameraStream(stream)
+      setCameraOpen(true)
+    } catch (reason) {
+      setCameraIssue(true)
+      setError(cameraErrorMessage(reason))
+    } finally {
+      setCameraStarting(false)
+    }
+  }
+
+  function markCameraReady() {
+    const video = videoRef.current
+    if (video?.videoWidth && video?.videoHeight) setCameraReady(true)
   }
 
   function capturePhoto() {
@@ -188,6 +282,7 @@ function Capture({ name, onComplete, onBack, screen }) {
       if (blob) {
         setPhoto(new File([blob], 'studio-selfie.jpg', { type: 'image/jpeg' }))
         setConsent(false)
+        setCameraIssue(false)
         setError('')
       }
     }, 'image/jpeg', 0.92)
@@ -199,6 +294,7 @@ function Capture({ name, onComplete, onBack, screen }) {
     event.target.value = ''
     if (!selected) return
     setError('')
+    setCameraIssue(false)
     try {
       setPhoto(await compressPortrait(selected))
       setConsent(false)
@@ -210,6 +306,7 @@ function Capture({ name, onComplete, onBack, screen }) {
   function retake() {
     setPhoto(null)
     setConsent(false)
+    setCameraIssue(false)
     setError('')
   }
 
@@ -278,7 +375,7 @@ function Capture({ name, onComplete, onBack, screen }) {
             <h2>Ready when you are</h2>
             <p>Look toward the light and keep your face comfortably in frame.</p>
             <div className="choice-actions">
-              <button className="primary" onClick={openCamera} type="button">Open camera</button>
+              <button className="primary" disabled={cameraStarting} onClick={openCamera} type="button">{cameraStarting ? 'Opening camera…' : 'Open camera'}</button>
               <label className="secondary file-picker-button">
                 <span>Choose a photo</span>
                 <input accept="image/*" aria-label="Choose a photo from your gallery" onChange={chooseFile} type="file" />
@@ -288,14 +385,15 @@ function Capture({ name, onComplete, onBack, screen }) {
         )}
 
         {!photo && cameraOpen && (
-          <div className="live-camera">
-            <video autoPlay muted playsInline ref={videoRef} />
+          <div aria-busy={!cameraReady} className="live-camera">
+            <video autoPlay muted onLoadedMetadata={markCameraReady} playsInline preload="metadata" ref={videoRef} />
             <div className="face-guide" aria-hidden="true" />
             <div className="camera-actions">
               <button className="secondary on-dark" onClick={stopCamera} type="button">Cancel</button>
-              <button aria-label="Capture selfie" className="shutter" onClick={capturePhoto} type="button"><span /></button>
+              <button aria-label="Capture selfie" className="shutter" disabled={!cameraReady} onClick={capturePhoto} type="button"><span /></button>
               <span className="camera-space" aria-hidden="true" />
             </div>
+            {!cameraReady && <p className="visually-hidden" role="status">Starting camera…</p>}
           </div>
         )}
 
@@ -308,6 +406,15 @@ function Capture({ name, onComplete, onBack, screen }) {
       </section>
 
       {error && <p className="form-message" role="alert">{error}</p>}
+      {cameraIssue && !cameraOpen && (
+        <div className="camera-fallback">
+          <p>Or use your device’s built-in camera:</p>
+          <label className="secondary file-picker-button">
+            <span>Take a photo instead</span>
+            <input accept="image/*" aria-label="Take a photo with your device camera" capture="user" onChange={chooseFile} type="file" />
+          </label>
+        </div>
+      )}
 
       {photo && (
         <div className="submit-area">
