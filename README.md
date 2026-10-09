@@ -32,6 +32,10 @@ npm run validate
 
 The build emits a self-contained Cloudflare Worker at `dist/server/index.js`. It embeds the Vite client bundle and serves the API routes, so deploy it to a Worker-capable host and configure `OPENAI_API_KEY` as a secret there. A static-only host is not sufficient because it would expose the OpenAI key or omit the caricature endpoint. The Site manifest provisions D1 for display-job status and R2 for the temporary completed PNG.
 
+## Deploy on Render
+
+The repository includes `render.yaml` for a Render Web Service. Render runs `npm ci && npm run build`, then `npm start`. Add `OPENAI_API_KEY` as a secret in the Render dashboard; never add it to Git. The Render adapter uses one in-memory display queue, so keep `WEB_CONCURRENCY=1`. A service restart clears an in-progress reveal; use durable storage before scaling to multiple instances.
+
 ## Privacy notes
 
 - The browser resizes and re-encodes each image before upload, which strips typical photo metadata.

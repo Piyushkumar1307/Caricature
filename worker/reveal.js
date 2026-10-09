@@ -44,6 +44,7 @@ export function guestNameFrom(value) {
 
 function useLocalStore(env) {
   return env?.LOCAL_DEV === true || env?.LOCAL_DEV === 'true'
+    || env?.MEMORY_REVEAL === true || env?.MEMORY_REVEAL === 'true'
 }
 
 export function displayStorageReady(env = {}) {
