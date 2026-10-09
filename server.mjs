@@ -32,9 +32,11 @@ function setSecurityHeaders(response) {
 }
 
 function requestUrl(request) {
-  const forwarded = request.headers['x-forwarded-proto']
-  const protocol = (Array.isArray(forwarded) ? forwarded[0] : forwarded || 'http').split(',')[0].trim()
-  const host = request.headers.host || 'localhost'
+  const forwardedProtocol = request.headers['x-forwarded-proto']
+  const requestedProtocol = (Array.isArray(forwardedProtocol) ? forwardedProtocol[0] : forwardedProtocol || 'http').split(',')[0].trim()
+  const protocol = requestedProtocol === 'https' || requestedProtocol === 'http' ? requestedProtocol : 'http'
+  const forwardedHost = request.headers['x-forwarded-host']
+  const host = (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost || request.headers.host || 'localhost').split(',')[0].trim()
   return `${protocol}://${host}${request.url || '/'}`
 }
 
