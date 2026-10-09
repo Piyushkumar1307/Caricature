@@ -121,7 +121,6 @@ function compressPortrait(file) {
 function Capture({ name, onComplete, onBack, screen }) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
-  const pickerRef = useRef(null)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [photo, setPhoto] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -280,7 +279,10 @@ function Capture({ name, onComplete, onBack, screen }) {
             <p>Look toward the light and keep your face comfortably in frame.</p>
             <div className="choice-actions">
               <button className="primary" onClick={openCamera} type="button">Open camera</button>
-              <button className="secondary" onClick={() => pickerRef.current?.click()} type="button">Choose a photo</button>
+              <label className="secondary file-picker-button">
+                <span>Choose a photo</span>
+                <input accept="image/*" aria-label="Choose a photo from your gallery" onChange={chooseFile} type="file" />
+              </label>
             </div>
           </div>
         )}
@@ -305,7 +307,6 @@ function Capture({ name, onComplete, onBack, screen }) {
         )}
       </section>
 
-      <input accept="image/jpeg,image/png,image/webp" capture="user" className="visually-hidden" onChange={chooseFile} ref={pickerRef} type="file" />
       {error && <p className="form-message" role="alert">{error}</p>}
 
       {photo && (
